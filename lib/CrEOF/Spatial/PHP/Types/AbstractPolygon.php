@@ -1,6 +1,6 @@
 <?php
 /**
- * Copyright (C) 2015 Derek J. Lambert
+ * Copyright (C) 2012 Derek J. Lambert
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,10 @@
 
 namespace CrEOF\Spatial\PHP\Types;
 
+use JMS\Serializer\Annotation\Groups;
+use CrEOF\Spatial\Exception\InvalidValueException;
+use CrEOF\Spatial\PHP\Types\AbstractPoint;
+
 /**
  * Abstract Polygon object for POLYGON spatial types
  *
@@ -33,6 +37,7 @@ abstract class AbstractPolygon extends AbstractGeometry
 {
     /**
      * @var array[] $rings
+     * @Groups({"poly"})
      */
     protected $rings = array();
 

@@ -1,6 +1,6 @@
 <?php
 /**
- * Copyright (C) 2015 Derek J. Lambert
+ * Copyright (C) 2012 Derek J. Lambert
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,10 +23,13 @@
 
 namespace CrEOF\Spatial\PHP\Types;
 
-use CrEOF\Geo\String\Exception\RangeException;
-use CrEOF\Geo\String\Exception\UnexpectedValueException;
-use CrEOF\Geo\String\Parser;
 use CrEOF\Spatial\Exception\InvalidValueException;
+use JMS\Serializer\Annotation\Groups;
+use Doctrine\ORM\Events;
+use Doctrine\Common\Persistence\Event\PreUpdateEventArgs ;
+
+
+
 
 /**
  * Abstract point object for POINT spatial types
@@ -37,17 +40,33 @@ use CrEOF\Spatial\Exception\InvalidValueException;
  * @author  Derek J. Lambert <dlambert@dereklambert.com>
  * @license http://dlambert.mit-license.org MIT
  */
+
+
 abstract class AbstractPoint extends AbstractGeometry
 {
     /**
      * @var float $x
+     * @Groups({"house", "order", "pizzeria", "pizzeria_list"})
      */
     protected $x;
 
     /**
      * @var float $y
+     * @Groups({"house", "order", "pizzeria", "pizzeria_list"})
      */
     protected $y;
+
+    /**
+     * @var float $lat
+     *
+     */
+    protected $lat;
+
+    /**
+     * @var float $lng
+     *
+     */
+    protected $lng;
 
     public function __construct()
     {
@@ -56,23 +75,16 @@ abstract class AbstractPoint extends AbstractGeometry
         call_user_func_array(array($this, 'construct'), $argv);
     }
 
+
+
     /**
      * @param mixed $x
      *
      * @return self
-     * @throws InvalidValueException
      */
     public function setX($x)
     {
-        $parser = new Parser($x);
-
-        try {
-            $this->x = (float) $parser->parse();
-        } catch (RangeException $e) {
-            throw new InvalidValueException($e->getMessage(), $e->getCode(), $e->getPrevious());
-        } catch (UnexpectedValueException $e) {
-            throw new InvalidValueException($e->getMessage(), $e->getCode(), $e->getPrevious());
-        }
+        $this->x = $this->toFloat($x);
 
         return $this;
     }
@@ -89,19 +101,10 @@ abstract class AbstractPoint extends AbstractGeometry
      * @param mixed $y
      *
      * @return self
-     * @throws InvalidValueException
      */
     public function setY($y)
     {
-        $parser = new Parser($y);
-
-        try {
-            $this->y = (float) $parser->parse();
-        } catch (RangeException $e) {
-            throw new InvalidValueException($e->getMessage(), $e->getCode(), $e->getPrevious());
-        } catch (UnexpectedValueException $e) {
-            throw new InvalidValueException($e->getMessage(), $e->getCode(), $e->getPrevious());
-        }
+        $this->y = $this->toFloat($y);
 
         return $this;
     }
@@ -122,7 +125,31 @@ abstract class AbstractPoint extends AbstractGeometry
      */
     public function setLatitude($latitude)
     {
-        return $this->setY($latitude);
+        return $this->setX($latitude);
+    }
+
+    /**
+     * @return float
+     */
+    public function setLat($latitude)
+    {
+        return $this->setX($latitude);
+    }
+
+    public function setLatLng($latlng)
+    {
+        $this->setX($latlng['lon']);
+        $this->setY($latlng['lat']);
+
+        return $this;
+    }
+
+    /**
+     */
+    public function getLatLng()
+    {
+       // echo '<script type="text/javascript"> alert(\''.$this->y.') </script>';
+        return array('lat' => $this->getLatitude(),'lon' => $this->getLongitude());
     }
 
     /**
@@ -130,7 +157,15 @@ abstract class AbstractPoint extends AbstractGeometry
      */
     public function getLatitude()
     {
-        return $this->getY();
+        return $this->getX();
+    }
+
+    /**
+     * @return float
+     */
+    public function getLat()
+    {
+        return $this->getX();
     }
 
     /**
@@ -140,15 +175,33 @@ abstract class AbstractPoint extends AbstractGeometry
      */
     public function setLongitude($longitude)
     {
-        return $this->setX($longitude);
+
+        return $this->setY($longitude);
     }
+
+    /**
+     * @return float
+     */
+    public function setLon($longitude)
+    {
+        return $this->setY($longitude);
+    }
+
 
     /**
      * @return float
      */
     public function getLongitude()
     {
-        return $this->getX();
+        return $this->getY();
+    }
+
+    /**
+     * @return float
+     */
+    public function getLon()
+    {
+        return $this->getY();
     }
 
     /**
@@ -199,15 +252,7 @@ abstract class AbstractPoint extends AbstractGeometry
             }
         }
 
-        array_walk($argv, function (&$value) {
-            if (is_array($value)) {
-                $value = 'Array';
-            } else {
-                $value = sprintf('"%s"', $value);
-            }
-        });
-
-        throw new InvalidValueException(sprintf('Invalid parameters passed to %s::%s: %s', get_class($this), '__construct', implode(', ', $argv)));
+        throw InvalidValueException::invalidParameters(get_class($this), '__construct', $argv);
     }
 
     /**
@@ -220,5 +265,94 @@ abstract class AbstractPoint extends AbstractGeometry
         $this->setX($x)
             ->setY($y)
             ->setSrid($srid);
+    }
+
+    /**
+     * @param mixed $value
+     *
+     * @return float
+     */
+    protected function toFloat($value)
+    {
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        return $this->convertStringToFloat($value);
+    }
+
+
+
+    /**
+     * @param string $value
+     *
+     * @return float
+     * @throws InvalidValueException
+     */
+    private function convertStringToFloat($value)
+    {
+        $regex = <<<EOD
+/
+^                                         # beginning of string
+(?|
+    (?|
+        (?<degrees>[0-8]?[0-9])           # degrees 0-89
+        (?::|°\s*)                        # colon or degree and optional spaces
+        (?<minutes>[0-5]?[0-9])           # minutes 0-59
+        (?::|(?:\'|\xe2\x80\xb2)\s*)      # colon or minute or apostrophe and optional spaces
+        (?<seconds>[0-5]?[0-9](?:\.\d+)?) # seconds 0-59 and optional decimal
+        (?:(?:"|\xe2\x80\xb3)\s*)?        # quote or double prime and optional spaces
+        |
+        (?<degrees>90)(?::|°\s*)(?<minutes>0?0)(?::|(?:\'|\xe2\x80\xb2)\s*)(?<seconds>0?0)(?:(?:"|\xe2\x80\xb3)\s*)?
+    )
+    (?<direction>[NnSs])                  # N or S for latitude
+    |
+    (?|
+        (?<degrees>0?[0-9]?[0-9]|1[0-7][0-9]) # degrees 0-179
+        (?::|°\s*)                            # colon or degree and optional spaces
+        (?<minutes>[0-5]?[0-9])               # minutes 0-59
+        (?::|(?:\'|\xe2\x80\xb2)\s*)          # colon or minute or apostrophe and optional spaces
+        (?<seconds>[0-5]?[0-9](?:\.\d+)?)     # seconds 0-59 and optional decimal
+        (?:(?:"|\xe2\x80\xb3)\s*)?            # quote or double prime and optional spaces
+        |
+        (?<degrees>180)(?::|°\s*)(?<minutes>0?0)(?::|(?:\'|\xe2\x80\xb2)\s*)(?<seconds>0?0)(?:(?:"|\xe2\x80\xb3)\s*)?
+    )
+    (?<direction>[EeWw])                      # E or W for longitude
+)
+$                                             # end of string
+/x
+EOD;
+
+        switch (1) {
+            case preg_match_all($regex, $value, $matches, PREG_SET_ORDER):
+                break;
+            default:
+                throw new InvalidValueException($value . ' is not a valid coordinate value.');
+        }
+
+        $p = $matches[0];
+
+        return ($p['degrees'] + ((($p['minutes'] * 60) + $p['seconds']) / 3600)) * (float) $this->getDirectionSign($p['direction']);
+    }
+
+    /**
+     * @param string $direction
+     *
+     * @return int
+     */
+    private function getDirectionSign($direction)
+    {
+        switch (strtolower($direction)) {
+            case 's':
+            case 'w':
+                return -1;
+                break;
+            case 'n':
+            case 'e':
+                return 1;
+                break;
+        }
+
+        return 1;
     }
 }
