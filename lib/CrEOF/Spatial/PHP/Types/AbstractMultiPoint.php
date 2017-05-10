@@ -24,6 +24,7 @@
 namespace CrEOF\Spatial\PHP\Types;
 
 use CrEOF\Spatial\Exception\InvalidValueException;
+use JMS\Serializer\Annotation\Groups;
 
 /**
  * Abstract MultiPoint object for MULTIPOINT spatial types
@@ -35,6 +36,7 @@ abstract class AbstractMultiPoint extends AbstractGeometry
 {
     /**
      * @var array[] $points
+     * @Groups({"house", "order", "pizzeria", "pizzeria_list", "city_pizzerias"})
      */
     protected $points = array();
 
