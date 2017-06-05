@@ -109,6 +109,20 @@ abstract class AbstractPoint extends AbstractGeometry
         return $this;
     }
 
+
+    public function getLng()
+    {
+        return $this->y;
+    }
+
+    public function setLng($y)
+    {
+        $this->y = $this->toFloat($y);
+
+        return $this;
+    }
+
+
     /**
      * @return float
      */
@@ -138,7 +152,7 @@ abstract class AbstractPoint extends AbstractGeometry
 
     public function setLatLng($latlng)
     {
-        $this->setX($latlng['lon']);
+        $this->setX($latlng['lng']);
         $this->setY($latlng['lat']);
 
         return $this;
