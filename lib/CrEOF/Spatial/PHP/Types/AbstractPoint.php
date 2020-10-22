@@ -46,25 +46,25 @@ abstract class AbstractPoint extends AbstractGeometry
 {
     /**
      * @var float $x
-     * @Groups({"house", "order", "pizzeria", "pizzeria_list", "city_pizzerias"})
+     * @Groups({"location", "house", "order", "pizzeria", "pizzeria_list", "city_pizzerias"})
      */
     protected $x;
 
     /**
      * @var float $y
-     * @Groups({"house", "order", "pizzeria", "pizzeria_list", "city_pizzerias"})
+     * @Groups({"location", "house", "order", "pizzeria", "pizzeria_list", "city_pizzerias"})
      */
     protected $y;
 
     /**
      * @var float $lat
-     *
+     * @Groups({"location", "house", "order", "pizzeria", "pizzeria_list", "city_pizzerias"})
      */
     protected $lat;
 
     /**
      * @var float $lng
-     *
+     * @Groups({"location", "house", "order", "pizzeria", "pizzeria_list", "city_pizzerias"})
      */
     protected $lng;
 
